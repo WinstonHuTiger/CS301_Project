@@ -45,7 +45,8 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+uint8_t rxBuffer1[1<<10];
+uint8_t rxBuffer2[1<<10];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,7 +60,33 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	if (huart->Instance == USART1) {
+		static unsigned char uRx_Data[1024] = {0};
+		static unsigned char uLength = 0;
+		if (rxBuffer1[0] == '\n') {
+			HAL_UART_Transmit(&huart2, uRx_Data, uLength, 0xffff);
+			HAL_UART_Transmit(&huart1, uRx_Data, uLength, 0xffff);
+			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			uLength = 0;
+		} else {
+			uRx_Data[uLength] = rxBuffer1[0];
+			uLength++;
+		}
+	} else {
+		static unsigned char uRx_Data[1024] = {0};
+		static unsigned char uLength = 0;
+		if (rxBuffer2[0] == '\0') {
+			HAL_UART_Transmit(&huart1, uRx_Data, uLength, 0xffff);
+			HAL_UART_Transmit(&huart2, uRx_Data, uLength, 0xffff);
+			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			uLength = 0;
+		} else {
+			uRx_Data[uLength] = rxBuffer2[0];
+			uLength++;
+		}
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -93,7 +120,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuffer1, 1);
+  HAL_UART_Receive_IT(&huart2, (uint8_t *)rxBuffer2, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -157,7 +185,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 9600;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -190,7 +218,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 9600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -214,10 +242,31 @@ static void MX_USART2_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : LED0_Pin */
+  GPIO_InitStruct.Pin = LED0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED0_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : LED1_Pin */
+  GPIO_InitStruct.Pin = LED1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED1_GPIO_Port, &GPIO_InitStruct);
 
 }
 
