@@ -66,9 +66,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		static unsigned char uRx_Data[1024] = {0};
 		static unsigned char uLength = 0;
 		if (rxBuffer1[0] == '\n') {
+			uRx_Data[uLength] = '\0';
 			// add zero char to the end and send to bluetooth
 			sprintf(msg, "%s\0", uRx_Data);
-			HAL_UART_Transmit(&huart2, msg, strlen(msg), 0xffff);
+			HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
 			// send back to the PC
 			sprintf(msg, "sent: %s\r\n", uRx_Data);
 			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
@@ -82,6 +83,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		static unsigned char uRx_Data[1024] = {0};
 		static unsigned char uLength = 0;
 		if (rxBuffer2[0] == '\0') {
+			uRx_Data[uLength] = '\0';
 			sprintf(msg, "recv: %s\r\n", uRx_Data);
 			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
 			uLength = 0;
