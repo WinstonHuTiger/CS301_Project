@@ -48,6 +48,7 @@ UART_HandleTypeDef huart2;
 uint8_t rxBuffer1[1<<10];
 uint8_t rxBuffer2[1<<10];
 uint8_t msg[1<<10];
+int AT_flag;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,15 +69,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		if (rxBuffer1[0] == '\n') {
 			uRx_Data[uLength] = '\0';
 			if (uRx_Data[0] == 'A') {
-				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-				HAL_GPIO_TogglePin(BLEN_GPIO_Port, BLEN_Pin);
-				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+				HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_LockPin(BLEN_GPIO_Port, BLEN_Pin);
+				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, HAL_GPIO_ReadPin(BLEN_GPIO_Port, BLEN_Pin));
 				sprintf(msg, "%s\r\n", uRx_Data);
-				HAL_UART_Transmit(&huart1, msg, strlen(msg)+1, 0xffff);
-				HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
-				HAL_GPIO_TogglePin(BLEN_GPIO_Port, BLEN_Pin);
-				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+				HAL_UART_Transmit(&huart2, msg, strlen(msg), 0xffff);
+				HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_SET);
+				//HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, HAL_GPIO_ReadPin(BLEN_GPIO_Port, BLEN_Pin));
 			} else {
 				// add zero char to the end and send to bluetooth
 				sprintf(msg, "%s\0", uRx_Data);
@@ -145,6 +144,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuffer1, 1);
   HAL_UART_Receive_IT(&huart2, (uint8_t *)rxBuffer2, 1);
+  AT_flag = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
