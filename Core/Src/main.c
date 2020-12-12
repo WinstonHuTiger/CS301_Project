@@ -67,12 +67,24 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		static unsigned char uLength = 0;
 		if (rxBuffer1[0] == '\n') {
 			uRx_Data[uLength] = '\0';
-			// add zero char to the end and send to bluetooth
-			sprintf(msg, "%s\0", uRx_Data);
-			HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
-			// send back to the PC
-			sprintf(msg, "sent: %s\r\n", uRx_Data);
-			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
+			if (uRx_Data[0] == 'A') {
+				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+				HAL_GPIO_TogglePin(BLEN_GPIO_Port, BLEN_Pin);
+				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+				sprintf(msg, "%s\r\n", uRx_Data);
+				HAL_UART_Transmit(&huart1, msg, strlen(msg)+1, 0xffff);
+				HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
+				HAL_GPIO_TogglePin(BLEN_GPIO_Port, BLEN_Pin);
+				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			} else {
+				// add zero char to the end and send to bluetooth
+				sprintf(msg, "%s\0", uRx_Data);
+				HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
+				// send back to the PC
+				sprintf(msg, "sent: %s\r\n", uRx_Data);
+				HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
+			}
 			// reset uLength
 			uLength = 0;
 		} else {
@@ -85,6 +97,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		if (rxBuffer2[0] == '\0') {
 			uRx_Data[uLength] = '\0';
 			sprintf(msg, "recv: %s\r\n", uRx_Data);
+			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
+			uLength = 0;
+		} else if(rxBuffer2[0] == '\n'){
+			uRx_Data[uLength] = '\0';
+			sprintf(msg, "AT answer: %s\r\n", uRx_Data);
 			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
 			uLength = 0;
 		} else {
@@ -253,12 +270,23 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : BLEN_Pin */
+  GPIO_InitStruct.Pin = BLEN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(BLEN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED0_Pin */
   GPIO_InitStruct.Pin = LED0_Pin;

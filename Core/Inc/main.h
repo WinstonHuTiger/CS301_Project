@@ -58,6 +58,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define BLEN_Pin GPIO_PIN_4
+#define BLEN_GPIO_Port GPIOC
 #define LED0_Pin GPIO_PIN_8
 #define LED0_GPIO_Port GPIOA
 #define LED1_Pin GPIO_PIN_2
