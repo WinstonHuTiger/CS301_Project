@@ -45,10 +45,11 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t rxBuffer1[1<<10];
-uint8_t rxBuffer2[1<<10];
-uint8_t msg[1<<10];
+uint8_t rxBuffer1[1<<8];
+uint8_t rxBuffer2[1<<8];
+uint8_t msg[1<<8];
 int AT_flag;
+uint8_t AT_msg[1<<8];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,20 +63,28 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+uint8_t* set_cmd(uint8_t* cmd) {
+	AT_flag = 1;
+	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_SET);
+	HAL_Delay(50);
+	uint8_t cmd_msg[1<<8];
+	sprintf(cmd_msg, "%s\r\n", cmd);
+	HAL_UART_Transmit(&huart2, cmd_msg, strlen(msg), 0xffff);
+	while (AT_flag)	HAL_Delay(50);
+	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
+	return AT_msg;
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-	if (huart->Instance == USART1) {
+	if (huart->Instance == USART1) { // when received from PC
 		static unsigned char uRx_Data[1024] = {0};
 		static unsigned char uLength = 0;
 		if (rxBuffer1[0] == '\n') {
 			uRx_Data[uLength] = '\0';
-			if (uRx_Data[0] == 'A') {
-				HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
-				HAL_GPIO_LockPin(BLEN_GPIO_Port, BLEN_Pin);
-				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, HAL_GPIO_ReadPin(BLEN_GPIO_Port, BLEN_Pin));
-				sprintf(msg, "%s\r\n", uRx_Data);
-				HAL_UART_Transmit(&huart2, msg, strlen(msg), 0xffff);
-				HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_SET);
-				//HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, HAL_GPIO_ReadPin(BLEN_GPIO_Port, BLEN_Pin));
+			if (uRx_Data[0] == ':') {
+				unsigned char* uRx_Data_ptr = uRx_Data;
+				uint8_t at_answer = set_cmd(uRx_Data_ptr+1);
 			} else {
 				// add zero char to the end and send to bluetooth
 				sprintf(msg, "%s\0", uRx_Data);
@@ -90,24 +99,40 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			uRx_Data[uLength] = rxBuffer1[0];
 			uLength++;
 		}
-	} else {
+	} else { // when recieved from bluetooth
 		static unsigned char uRx_Data[1024] = {0};
 		static unsigned char uLength = 0;
-		if (rxBuffer2[0] == '\0') {
+		if (rxBuffer2[0] == '\0') { // msg of normal mode
 			uRx_Data[uLength] = '\0';
-			sprintf(msg, "recv: %s\r\n", uRx_Data);
+			sprintf(msg, "recv: %s\n", uRx_Data);
 			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
 			uLength = 0;
-		} else if(rxBuffer2[0] == '\n'){
+		} else if(rxBuffer2[0] == '\n'){ // answer of AT mode
 			uRx_Data[uLength] = '\0';
-			sprintf(msg, "AT answer: %s\r\n", uRx_Data);
-			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
+			strcpy(AT_msg, uRx_Data);
+			AT_flag = 0;
+			HAL_UART_Transmit(&huart1, AT_msg, strlen(AT_msg), 0xffff);
 			uLength = 0;
 		} else {
 			uRx_Data[uLength] = rxBuffer2[0];
 			uLength++;
 		}
 	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	switch (GPIO_Pin) {
+		case KEYR_Pin:
+				HAL_GPIO_TogglePin(BLEN_GPIO_Port, BLEN_Pin);
+				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			break;
+		case STATE_Pin:
+				HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, HAL_GPIO_ReadPin(STATE_GPIO_Port, STATE_Pin));
+			break;
+		default:
+			break;
+	}
+
 }
 /* USER CODE END 0 */
 
@@ -269,8 +294,8 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
@@ -280,6 +305,18 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : KEYR_Pin */
+  GPIO_InitStruct.Pin = KEYR_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(KEYR_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : STATE_Pin */
+  GPIO_InitStruct.Pin = STATE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(STATE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BLEN_Pin */
   GPIO_InitStruct.Pin = BLEN_Pin;
@@ -301,6 +338,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED1_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
 }
 
