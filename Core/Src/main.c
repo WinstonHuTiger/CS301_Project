@@ -49,7 +49,7 @@ uint8_t rxBuffer1[1<<8];
 uint8_t rxBuffer2[1<<8];
 uint8_t msg[1<<8];
 int AT_flag;
-uint8_t AT_msg[1<<8];
+//uint8_t AT_msg[1<<8];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,16 +64,21 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t* set_cmd(uint8_t* cmd) {
+void set_cmd(uint8_t* cmd) {
 	AT_flag = 1;
+	uint8_t success = 0;
 	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_SET);
 	HAL_Delay(50);
 	uint8_t cmd_msg[1<<8];
 	sprintf(cmd_msg, "%s\r\n", cmd);
 	HAL_UART_Transmit(&huart2, cmd_msg, strlen(msg), 0xffff);
-	while (AT_flag)	HAL_Delay(50);
+	//TO DO, make the fast send safe
+	uint8_t i = 5;
+	while (AT_flag && i--){
+		HAL_Delay(20);
+	}
 	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
-	return AT_msg;
+
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
@@ -84,7 +89,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			uRx_Data[uLength] = '\0';
 			if (uRx_Data[0] == ':') {
 				unsigned char* uRx_Data_ptr = uRx_Data;
-				uint8_t at_answer = set_cmd(uRx_Data_ptr+1);
+				set_cmd(uRx_Data_ptr+1);
+
 			} else {
 				// add zero char to the end and send to bluetooth
 				sprintf(msg, "%s\0", uRx_Data);
@@ -109,9 +115,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			uLength = 0;
 		} else if(rxBuffer2[0] == '\n'){ // answer of AT mode
 			uRx_Data[uLength] = '\0';
-			strcpy(AT_msg, uRx_Data);
+//			strcpy(AT_msg, uRx_Data);
 			AT_flag = 0;
-			HAL_UART_Transmit(&huart1, AT_msg, strlen(AT_msg), 0xffff);
+			HAL_UART_Transmit(&huart1, uRx_Data, strlen(uRx_Data), 0xffff);
+//			for(uint8_t i =0;i<=uLength; i++){
+//				uRx_Data[i] = 0;
+//			}
 			uLength = 0;
 		} else {
 			uRx_Data[uLength] = rxBuffer2[0];
