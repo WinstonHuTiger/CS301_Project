@@ -407,9 +407,13 @@ int main(void)
 	  		current_position = print_node(curr, current_position);
 	  		curr = curr->next;
 	  	}
+	  	int count = 0;
 	  	while (!new_node_flag) {
-	  		//display_state();
-	  		HAL_Delay(1000);
+	  		if (count++ > 25) {
+	  			display_state();
+	  			count = 0;
+	  		}
+	  		HAL_Delay(200);
 	  	}
 	  	new_node_flag = 0;
     /* USER CODE END WHILE */
