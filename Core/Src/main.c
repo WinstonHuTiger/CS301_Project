@@ -41,6 +41,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim3;
+
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
@@ -77,6 +79,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -206,6 +209,51 @@ void disconnect() {
 	set_cmd("AT+DISC");
 }
 
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	char* state = get_state();
+	char* display_msg[64];
+	sprintf(display_msg, "State: %s", state);
+	if(!strcmp(state, "CONNECTED")){
+		POINT_COLOR = GREEN;
+		LCD_ShowString(25, 40, 200, 24, 24, (uint8_t*) display_msg);
+	}else{
+		POINT_COLOR = RED;
+		LCD_ShowString(25, 40, 200, 24, 24, (uint8_t*) display_msg);
+	}
+	for (int n = start; n < start + number_of_show_rows; n++) {
+		  			int line = n - start;
+		  			if (Data_lcd[n][0] != '\0') {
+		  				if (side[n] == 1) { //right
+		  					POINT_COLOR = BLUE;
+		  					BACK_COLOR = WHITE;
+
+		  					LCD_Fill(30, 100 + 20 * line, 209 - 8 * length_of_one_row,
+		  							100 + 20 * (line + 1),
+		  							YELLOW);
+		  					LCD_Fill(210 - 8 * (length_of_one_row - rowLength[n]),
+		  							100 + 20 * line, 209, 100 + 20 * (line + 1),
+		  							YELLOW);
+		  					LCD_ShowString(210 - 8 * length_of_one_row, 100 + 20 * line,
+		  							200, 16, 16, (uint8_t*) Data_lcd[n]);
+		  				} else { //left
+		  					POINT_COLOR = RED;
+		  					BACK_COLOR = BLACK;
+
+		  					LCD_Fill(30 + 8 * rowLength[n], 100 + 20 * line, 209,
+		  							100 + 20 * (line + 1),
+		  							YELLOW);
+		  					LCD_ShowString(30, 100 + 20 * line, 200, 16, 16,
+		  							(uint8_t*) Data_lcd[n]);
+		  				}
+		  			} else
+		  				LCD_Fill(29, 100 + 20 * line, 209, 100 + 20 * (line + 1),
+		  				YELLOW);
+
+}
+
+
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) { // when received from PC
 		static unsigned char uRx_Data1[1024] = {0};
@@ -330,15 +378,18 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuffer1, 1);
   HAL_UART_Receive_IT(&huart2, (uint8_t *)rxBuffer2, 1);
+  HAL_TIM_Base_Start_IT(&htim3);
   AT_flag = 0;
   AT_TBC_flag = 0;
   LCD_Clear(WHITE);
@@ -346,8 +397,7 @@ int main(void)
   POINT_COLOR = BLACK;
   LCD_DrawRectangle(28, 90, 210, 290); //upper left and button right
   LCD_Fill(29, 91, 209, 289, YELLOW);
-  POINT_COLOR = RED;
-  LCD_ShowString(25, 40, 200, 24, 24, (uint8_t*) "11812701 LiJiaLin");
+
   is_self = 1;
   /* USER CODE END 2 */
 
@@ -355,45 +405,17 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (HAL_GPIO_ReadPin(KEY0_DOWN_GPIO_Port, KEY0_DOWN_Pin)
-	  				== GPIO_PIN_RESET) {
-	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-	  			start++;
-	  			HAL_Delay(250);
-	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-	  		}
-
-	  for (int n = start; n < start + number_of_show_rows; n++) {
-	  			int line = n - start;
-	  			if (Data_lcd[n][0] != '\0') {
-	  				if (side[n] == 1) { //right
-	  					POINT_COLOR = BLUE;
-	  					BACK_COLOR = WHITE;
-
-	  					LCD_Fill(30, 100 + 20 * line, 209 - 8 * length_of_one_row,
-	  							100 + 20 * (line + 1),
-	  							YELLOW);
-	  					LCD_Fill(210 - 8 * (length_of_one_row - rowLength[n]),
-	  							100 + 20 * line, 209, 100 + 20 * (line + 1),
-	  							YELLOW);
-	  					LCD_ShowString(210 - 8 * length_of_one_row, 100 + 20 * line,
-	  							200, 16, 16, (uint8_t*) Data_lcd[n]);
-	  				} else { //left
-	  					POINT_COLOR = RED;
-	  					BACK_COLOR = BLACK;
-
-	  					LCD_Fill(30 + 8 * rowLength[n], 100 + 20 * line, 209,
-	  							100 + 20 * (line + 1),
-	  							YELLOW);
-	  					LCD_ShowString(30, 100 + 20 * line, 200, 16, 16,
-	  							(uint8_t*) Data_lcd[n]);
-	  				}
-	  			} else
-	  				LCD_Fill(29, 100 + 20 * line, 209, 100 + 20 * (line + 1),
-	  				YELLOW);
-	  		}
-
-	  		HAL_Delay(500);
+//	  if (HAL_GPIO_ReadPin(KEY0_DOWN_GPIO_Port, KEY0_DOWN_Pin)
+//	  				== GPIO_PIN_RESET) {
+//	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+//	  			start++;
+//	  			HAL_Delay(250);
+//	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+//	  		}
+//
+//
+//
+//	  		HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -412,10 +434,13 @@ void SystemClock_Config(void)
 
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -424,15 +449,60 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 503;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 9999;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
 }
 
 /**
