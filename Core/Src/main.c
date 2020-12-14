@@ -68,7 +68,13 @@ uint8_t msg[1<<8];
 int AT_flag;
 uint8_t AT_msg[1<<8];
 int AT_TBC_flag; // AT ToBeContinued Flag
-
+typedef struct node {
+	enum{Q, A, I} type;
+	uint8_t* content;
+	struct node* next;
+} node;
+int new_node_flag;
+struct node* head;
 
 /* USER CODE END PV */
 
@@ -88,28 +94,48 @@ static void MX_USART2_UART_Init(void);
 //API
 
 void add_message(unsigned char bluetooth_msg [], int is_self) {
-	int bias = 0;
-	int len = strlen(bluetooth_msg);
-	while (len > 0) {
-		if (len >= length_of_one_row) {
-			for (int n = 0; n < length_of_one_row; n++)
-				Data_lcd[base][n] = bluetooth_msg[n + bias * length_of_one_row];
-			rowLength[base] = length_of_one_row;
-		} else {
-			for (int n = 0; n < len; n++)
-				Data_lcd[base][n] = bluetooth_msg[n + bias * length_of_one_row];
-			rowLength[base] = ulength;
-		}
-		side[base] = is_self;
-		base++;
-		bias++;
-		len -= length_of_one_row;
+	struct node* temp = malloc(sizeof(struct node));
+	temp->type = is_self ? A : Q;
+	temp->content = (uint8_t *) malloc((strlen(bluetooth_msg) + 2) * sizeof(uint8_t));
+	for (int i = 0; i < strlen(bluetooth_msg); i++) {
+		temp->content[i] = (uint8_t) bluetooth_msg[i];
 	}
-	len = 0;
+	temp->content[strlen(bluetooth_msg)] = 0;
+	temp->next = head;
+	head = temp;
+	new_node_flag = 1;
+}
 
-	start = base - number_of_show_rows;
-	if (start < 0)
-		start = 0;
+
+
+int print_node(struct node* n, int start_pos) {
+	int maxCharPerLine = 23;
+	int line = (strlen(n->content) - 1) / maxCharPerLine + 1;
+	if (start_pos - (line - 1) * 20 < 65) {
+		return 0;
+	}
+	if (n->type == Q) {
+		POINT_COLOR = GREEN;
+		LCD_DrawRectangle(30, start_pos, 230, start_pos - 20 * line);
+		uint8_t* current_string_pos = n->content;
+		for (int i = 0; i < line - 1; i++) {
+			uint8_t temp_char = current_string_pos[maxCharPerLine];
+			current_string_pos[maxCharPerLine] = (uint8_t)'\0';
+			LCD_ShowString(38, start_pos - 19 - (line - 1 - i) * 20, 200, 16, 16, current_string_pos);
+			current_string_pos[maxCharPerLine] = temp_char;
+			current_string_pos += maxCharPerLine;
+		}
+		LCD_ShowString(38, start_pos - 19, 200, 16, 16, current_string_pos);
+		return start_pos - 20 * line - 10;
+	} else if (n->type == A) {
+		POINT_COLOR = WHITE;
+		LCD_DrawRectangle(10, start_pos, 210, start_pos - 20);
+		LCD_ShowString(18, start_pos - 18, 200, 16, 16, n->content);
+		return start_pos - 30;
+	} else if (n->type == I) {
+		return start_pos;
+	}
+	return 0;
 }
 
 
@@ -304,6 +330,25 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 }
 
+char last_state[20];
+
+void display_state() {
+	char* state = get_state();
+	//if (!strcmp(state, last_state)) return;
+	strcpy(last_state, state);
+	char* display_msg[64];
+	sprintf(display_msg, "State: %s", state);
+	POINT_COLOR = WHITE;
+	LCD_Color_Fill(0, 0, 240, 40, BLACK);
+	if(!strcmp(state, "CONNECTED")){
+		POINT_COLOR = GREEN;
+		LCD_ShowString(25, 10, 200, 24, 24, (uint8_t*) display_msg);
+	}else{
+		POINT_COLOR = RED;
+		LCD_ShowString(25, 10, 200, 24, 24, (uint8_t*) display_msg);
+	}
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -341,59 +386,32 @@ int main(void)
   HAL_UART_Receive_IT(&huart2, (uint8_t *)rxBuffer2, 1);
   AT_flag = 0;
   AT_TBC_flag = 0;
-  LCD_Clear(WHITE);
-  BACK_COLOR = WHITE;
-  POINT_COLOR = BLACK;
-  LCD_DrawRectangle(28, 90, 210, 290); //upper left and button right
-  LCD_Fill(29, 91, 209, 289, YELLOW);
-  POINT_COLOR = RED;
-  LCD_ShowString(25, 40, 200, 24, 24, (uint8_t*) "11812701 LiJiaLin");
-  is_self = 1;
+  head = malloc(sizeof(struct node));
+  head->type = I;
+  head->content = (uint8_t *)"initial content";
+  head->next = NULL;
+  new_node_flag = 0;
+  strcpy(last_state, "Initial");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (HAL_GPIO_ReadPin(KEY0_DOWN_GPIO_Port, KEY0_DOWN_Pin)
-	  				== GPIO_PIN_RESET) {
-	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-	  			start++;
-	  			HAL_Delay(250);
-	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-	  		}
-
-	  for (int n = start; n < start + number_of_show_rows; n++) {
-	  			int line = n - start;
-	  			if (Data_lcd[n][0] != '\0') {
-	  				if (side[n] == 1) { //right
-	  					POINT_COLOR = BLUE;
-	  					BACK_COLOR = WHITE;
-
-	  					LCD_Fill(30, 100 + 20 * line, 209 - 8 * length_of_one_row,
-	  							100 + 20 * (line + 1),
-	  							YELLOW);
-	  					LCD_Fill(210 - 8 * (length_of_one_row - rowLength[n]),
-	  							100 + 20 * line, 209, 100 + 20 * (line + 1),
-	  							YELLOW);
-	  					LCD_ShowString(210 - 8 * length_of_one_row, 100 + 20 * line,
-	  							200, 16, 16, (uint8_t*) Data_lcd[n]);
-	  				} else { //left
-	  					POINT_COLOR = RED;
-	  					BACK_COLOR = BLACK;
-
-	  					LCD_Fill(30 + 8 * rowLength[n], 100 + 20 * line, 209,
-	  							100 + 20 * (line + 1),
-	  							YELLOW);
-	  					LCD_ShowString(30, 100 + 20 * line, 200, 16, 16,
-	  							(uint8_t*) Data_lcd[n]);
-	  				}
-	  			} else
-	  				LCD_Fill(29, 100 + 20 * line, 209, 100 + 20 * (line + 1),
-	  				YELLOW);
-	  		}
-
-	  		HAL_Delay(500);
+	  LCD_Clear(BLACK);
+	  	BACK_COLOR = BLACK;
+	  	struct node* curr = head;
+	  	int current_position = 300;
+  		display_state();
+	  	while (curr) {
+	  		current_position = print_node(curr, current_position);
+	  		curr = curr->next;
+	  	}
+	  	while (!new_node_flag) {
+	  		display_state();
+	  		HAL_Delay(1000);
+	  	}
+	  	new_node_flag = 0;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
