@@ -65,6 +65,8 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+
 void set_cmd(uint8_t* cmd) {
 	AT_flag = 1;
 	uint8_t success = 0;
@@ -72,7 +74,7 @@ void set_cmd(uint8_t* cmd) {
 	HAL_Delay(50);
 	uint8_t cmd_msg[1<<8];
 	sprintf(cmd_msg, "%s\r\n", cmd);
-	HAL_UART_Transmit(&huart2, cmd_msg, strlen(msg), 0xffff);
+	HAL_UART_Transmit(&huart2, cmd_msg, strlen(cmd_msg), 0xffff);
 	//TO DO, make the fast send safe
 	uint8_t i = 5;
 	while (AT_flag && i--){
@@ -81,6 +83,12 @@ void set_cmd(uint8_t* cmd) {
 	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
 
 }
+
+char* get_state();
+int get_role();
+void default_connect();
+void disconnect();
+
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) { // when received from PC
