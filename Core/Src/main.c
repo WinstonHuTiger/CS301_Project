@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,12 +45,31 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+//For LCD
+#define MaxSize 200 //max block size
+#define number_of_show_rows 9 //length of show rows
+#define length_of_one_row 9
+uint8_t rxBuffer[200];
+static unsigned char uRx_Data_lcd[200] = { 0 };
+static unsigned char Data_lcd[MaxSize][50]; //all data
+static int ulength = 0;
+static int rowLength[MaxSize];
+static int side[MaxSize];
+
+static int base = 0; //base of Data
+static int start = 0; //index of show start
+//static int line[showLength];
+static unsigned char debugmsg[20];
+int is_self;
+//For Bluetooth
 uint8_t rxBuffer1[1<<8];
 uint8_t rxBuffer2[1<<8];
 uint8_t msg[1<<8];
 int AT_flag;
 uint8_t AT_msg[1<<8];
 int AT_TBC_flag; // AT ToBeContinued Flag
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,6 +84,40 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+//For LCD
+//API
+
+void add_message(unsigned char bluetooth_msg [], int is_self) {
+	int bias = 0;
+	int len = strlen(bluetooth_msg);
+	while (len > 0) {
+		if (len >= length_of_one_row) {
+			for (int n = 0; n < length_of_one_row; n++)
+				Data_lcd[base][n] = bluetooth_msg[n + bias * length_of_one_row];
+			rowLength[base] = length_of_one_row;
+		} else {
+			for (int n = 0; n < len; n++)
+				Data_lcd[base][n] = bluetooth_msg[n + bias * length_of_one_row];
+			rowLength[base] = ulength;
+		}
+		side[base] = is_self;
+		base++;
+		bias++;
+		len -= length_of_one_row;
+	}
+	len = 0;
+
+	start = base - number_of_show_rows;
+	if (start < 0)
+		start = 0;
+}
+
+
+void clear_buffer(char* buffer, int length) {
+	for (int i = 0; i < length; i++) {
+		buffer[i] = '\0';
+	}
+}
 
 
 void set_cmd(uint8_t* cmd) {
@@ -84,11 +137,74 @@ void set_cmd(uint8_t* cmd) {
 
 }
 
-char* get_state();
-int get_role();
-void default_connect();
-void disconnect();
+int starts_with(char* text, char* begining) {
+	if (strlen(text) < strlen(begining)) {
+		return 0;
+	}
+	for (int i = 0; i < strlen(begining); i++) {
+		if (text[i] != begining[i]) {
+			return 0;
+		}
+	}
+	return 1;
+}
 
+char* get_state() {
+	set_cmd("AT+STATE?");
+	while (!starts_with(AT_msg, "+STATE:")) {
+		HAL_Delay(500);
+		set_cmd("AT+STATE?");
+	}
+	char* state_name = AT_msg;
+	state_name += 7;
+	int i = 0;
+	while (1) {
+//		HAL_UART_Transmit(&huart1, "..", strlen(".."), 0xffff);
+		if (state_name[i] == '\n') {
+			state_name[i - 1] = '\0';
+			break;
+		}
+		i++;
+	}
+	return state_name;
+}
+
+int get_role() {
+	set_cmd("AT+ROLE?");
+	while (!starts_with(AT_msg, "+ROLE:")) {
+		HAL_Delay(50);
+		set_cmd("AT+ROLE?");
+	}
+	return AT_msg[6] == '1';
+}
+
+void default_connect() {
+	HAL_UART_Transmit(&huart1, "START CONNECTION\n", strlen("START CONNECTION\n"), 0xffff);
+	if (strcmp(get_state(), "CONNECTED")) { // not connected
+		HAL_UART_Transmit(&huart1, "ENTER CONNECTION\n", strlen("ENTER CONNECTION\n"), 0xffff);
+		if (get_role() == 1) {
+			set_cmd("AT+ROLE=0");
+		} else {
+			set_cmd("AT+ROLE=1");
+		}
+		HAL_Delay(50);
+		set_cmd("AT+RESET");
+		HAL_UART_Transmit(&huart1, "END CONNECTION\n", strlen("END CONNECTION\n"), 0xffff);
+	}
+}
+
+void disconnect() {
+	char* state = get_state();
+//	HAL_UART_Transmit(&huart1, state, strlen(state), 0xffff);
+	if (!strcmp(state, "CONNECTED")) { // connected
+		if (get_role() == 1) {
+			set_cmd("AT+ROLE=0");
+		} else {
+			set_cmd("AT+ROLE=1");
+		}
+	}
+	set_cmd("AT+DISC");
+}
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) { // when received from PC
@@ -102,13 +218,21 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 				set_cmd(uRx_Data_ptr+1);
 				sprintf(temp_msg, "AT_answer: %s\n", AT_msg);
 				HAL_UART_Transmit(&huart1, temp_msg, strlen(temp_msg), 0xffff);
+
 			} else {
 				// add zero char to the end and send to bluetooth
 				sprintf(msg, "%s\0", uRx_Data1);
 				HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
+
+				//display message
+				add_message(msg, is_self);
+
 				// send back to the PC
+
 				sprintf(msg, "sent: %s\r\n", uRx_Data1);
 				HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
+
+
 			}
 			// reset uLength
 			uLength1 = 0;
@@ -125,11 +249,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		if (rxBuffer2[0] == '\0') { // msg of normal mode
 			uRx_Data[uLength] = '\0';
 			sprintf(msg, "recv: %s\n", uRx_Data);
+			add_message(uRx_Data, ~is_self);
 			HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
 			uLength = 0;
 		} else if(rxBuffer2[0] == '\n'){ // answer of AT mode
 			uRx_Data[uLength] = '\0';
 			if (uRx_Data[0] == '+') {
+				clear_buffer(AT_msg, 1<<8);
 				strcpy(AT_msg, uRx_Data);
 				AT_TBC_flag = 1;
 			} else if (AT_TBC_flag) {
@@ -137,6 +263,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 				AT_TBC_flag = 0;
 				AT_flag = 0;
 			} else {
+				clear_buffer(AT_msg, 1<<8);
 				sprintf(AT_msg, "%s\n", uRx_Data);
 				AT_flag = 0;
 			}
@@ -152,17 +279,31 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	switch (GPIO_Pin) {
 		case KEYR_Pin:
-				HAL_GPIO_TogglePin(BLEN_GPIO_Port, BLEN_Pin);
-				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			disconnect();
 			break;
 		case STATE_Pin:
-				HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, HAL_GPIO_ReadPin(STATE_GPIO_Port, STATE_Pin));
+//				HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, HAL_GPIO_ReadPin(STATE_GPIO_Port, STATE_Pin));
 			break;
+		case KEY0_Pin:
+				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+				default_connect();
+			break;
+		case KEY1_Pin:
+			HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);
+				disconnect();
+			break;
+//		case KEY0_DOWN_Pin:
+//			start--;
+//			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+//			HAL_Delay(250);
+//			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+//			break;
 		default:
 			break;
 	}
 
 }
+
 /* USER CODE END 0 */
 
 /**
@@ -181,7 +322,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  LCD_Init();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -200,12 +341,59 @@ int main(void)
   HAL_UART_Receive_IT(&huart2, (uint8_t *)rxBuffer2, 1);
   AT_flag = 0;
   AT_TBC_flag = 0;
+  LCD_Clear(WHITE);
+  BACK_COLOR = WHITE;
+  POINT_COLOR = BLACK;
+  LCD_DrawRectangle(28, 90, 210, 290); //upper left and button right
+  LCD_Fill(29, 91, 209, 289, YELLOW);
+  POINT_COLOR = RED;
+  LCD_ShowString(25, 40, 200, 24, 24, (uint8_t*) "11812701 LiJiaLin");
+  is_self = 1;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if (HAL_GPIO_ReadPin(KEY0_DOWN_GPIO_Port, KEY0_DOWN_Pin)
+	  				== GPIO_PIN_RESET) {
+	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	  			start++;
+	  			HAL_Delay(250);
+	  			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	  		}
+
+	  for (int n = start; n < start + number_of_show_rows; n++) {
+	  			int line = n - start;
+	  			if (Data_lcd[n][0] != '\0') {
+	  				if (side[n] == 1) { //right
+	  					POINT_COLOR = BLUE;
+	  					BACK_COLOR = WHITE;
+
+	  					LCD_Fill(30, 100 + 20 * line, 209 - 8 * length_of_one_row,
+	  							100 + 20 * (line + 1),
+	  							YELLOW);
+	  					LCD_Fill(210 - 8 * (length_of_one_row - rowLength[n]),
+	  							100 + 20 * line, 209, 100 + 20 * (line + 1),
+	  							YELLOW);
+	  					LCD_ShowString(210 - 8 * length_of_one_row, 100 + 20 * line,
+	  							200, 16, 16, (uint8_t*) Data_lcd[n]);
+	  				} else { //left
+	  					POINT_COLOR = RED;
+	  					BACK_COLOR = BLACK;
+
+	  					LCD_Fill(30 + 8 * rowLength[n], 100 + 20 * line, 209,
+	  							100 + 20 * (line + 1),
+	  							YELLOW);
+	  					LCD_ShowString(30, 100 + 20 * line, 200, 16, 16,
+	  							(uint8_t*) Data_lcd[n]);
+	  				}
+	  			} else
+	  				LCD_Fill(29, 100 + 20 * line, 209, 100 + 20 * (line + 1),
+	  				YELLOW);
+	  		}
+
+	  		HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -339,13 +527,19 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : KEYR_Pin */
   GPIO_InitStruct.Pin = KEYR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(KEYR_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : KEY0_DOWN_Pin KEY1_Pin */
+  GPIO_InitStruct.Pin = KEY0_DOWN_Pin|KEY1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : STATE_Pin */
   GPIO_InitStruct.Pin = STATE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(STATE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BLEN_Pin */
@@ -354,6 +548,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BLEN_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : KEY0_Pin */
+  GPIO_InitStruct.Pin = KEY0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(KEY0_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED0_Pin */
   GPIO_InitStruct.Pin = LED0_Pin;
@@ -370,8 +570,20 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED1_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
