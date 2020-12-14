@@ -118,9 +118,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 //			strcpy(AT_msg, uRx_Data);
 			AT_flag = 0;
 			HAL_UART_Transmit(&huart1, uRx_Data, strlen(uRx_Data), 0xffff);
-//			for(uint8_t i =0;i<=uLength; i++){
-//				uRx_Data[i] = 0;
-//			}
+			for(uint8_t i =0;i<=strlen(uRx_Data)+10; i++){
+				uRx_Data[i] = 0;
+			}
 			uLength = 0;
 		} else {
 			uRx_Data[uLength] = rxBuffer2[0];
