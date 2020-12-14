@@ -408,7 +408,7 @@ int main(void)
 	  		curr = curr->next;
 	  	}
 	  	while (!new_node_flag) {
-	  		display_state();
+	  		//display_state();
 	  		HAL_Delay(1000);
 	  	}
 	  	new_node_flag = 0;
