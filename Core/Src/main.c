@@ -50,6 +50,7 @@ uint8_t rxBuffer2[1<<8];
 uint8_t msg[1<<8];
 int AT_flag;
 uint8_t AT_msg[1<<8];
+int AT_TBC_flag; // AT ToBeContinued Flag
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,40 +65,51 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t* set_cmd(uint8_t* cmd) {
+void set_cmd(uint8_t* cmd) {
 	AT_flag = 1;
+	uint8_t success = 0;
 	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_SET);
 	HAL_Delay(50);
 	uint8_t cmd_msg[1<<8];
 	sprintf(cmd_msg, "%s\r\n", cmd);
 	HAL_UART_Transmit(&huart2, cmd_msg, strlen(msg), 0xffff);
-	while (AT_flag)	HAL_Delay(50);
+	//TO DO, make the fast send safe
+	uint8_t i = 5;
+	while (AT_flag && i--){
+		HAL_Delay(20);
+	}
 	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET);
-	return AT_msg;
+
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) { // when received from PC
-		static unsigned char uRx_Data[1024] = {0};
-		static unsigned char uLength = 0;
+		static unsigned char uRx_Data1[1024] = {0};
+		static unsigned char uLength1 = 0;
 		if (rxBuffer1[0] == '\n') {
-			uRx_Data[uLength] = '\0';
-			if (uRx_Data[0] == ':') {
-				unsigned char* uRx_Data_ptr = uRx_Data;
-				uint8_t at_answer = set_cmd(uRx_Data_ptr+1);
+			uRx_Data1[uLength1] = '\0';
+			if (uRx_Data1[0] == ':') {
+				uint8_t temp_msg[1<<8];
+				unsigned char* uRx_Data_ptr = uRx_Data1;
+				set_cmd(uRx_Data_ptr+1);
+				sprintf(temp_msg, "AT_answer: %s\n", AT_msg);
+				HAL_UART_Transmit(&huart1, temp_msg, strlen(temp_msg), 0xffff);
 			} else {
 				// add zero char to the end and send to bluetooth
-				sprintf(msg, "%s\0", uRx_Data);
+				sprintf(msg, "%s\0", uRx_Data1);
 				HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
 				// send back to the PC
-				sprintf(msg, "sent: %s\r\n", uRx_Data);
+				sprintf(msg, "sent: %s\r\n", uRx_Data1);
 				HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
 			}
 			// reset uLength
-			uLength = 0;
+			uLength1 = 0;
+			for (int i = 0; i < 1024; i++) {
+				uRx_Data1[i] = '\0';
+			}
 		} else {
-			uRx_Data[uLength] = rxBuffer1[0];
-			uLength++;
+			uRx_Data1[uLength1] = rxBuffer1[0];
+			uLength1++;
 		}
 	} else { // when recieved from bluetooth
 		static unsigned char uRx_Data[1024] = {0};
@@ -109,9 +121,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			uLength = 0;
 		} else if(rxBuffer2[0] == '\n'){ // answer of AT mode
 			uRx_Data[uLength] = '\0';
-			strcpy(AT_msg, uRx_Data);
-			AT_flag = 0;
-			HAL_UART_Transmit(&huart1, AT_msg, strlen(AT_msg), 0xffff);
+			if (uRx_Data[0] == '+') {
+				strcpy(AT_msg, uRx_Data);
+				AT_TBC_flag = 1;
+			} else if (AT_TBC_flag) {
+				sprintf(AT_msg, "%s\n%s\n", AT_msg, uRx_Data);
+				AT_TBC_flag = 0;
+				AT_flag = 0;
+			} else {
+				sprintf(AT_msg, "%s\n", uRx_Data);
+				AT_flag = 0;
+			}
+			//HAL_UART_Transmit(&huart1, uRx_Data, strlen(uRx_Data), 0xffff);
 			uLength = 0;
 		} else {
 			uRx_Data[uLength] = rxBuffer2[0];
@@ -170,6 +191,7 @@ int main(void)
   HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuffer1, 1);
   HAL_UART_Receive_IT(&huart2, (uint8_t *)rxBuffer2, 1);
   AT_flag = 0;
+  AT_TBC_flag = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
