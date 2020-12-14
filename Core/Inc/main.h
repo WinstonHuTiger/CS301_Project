@@ -63,10 +63,17 @@ void Error_Handler(void);
 #define KEYR_EXTI_IRQn EXTI1_IRQn
 #define STATE_Pin GPIO_PIN_4
 #define STATE_GPIO_Port GPIOA
+#define STATE_EXTI_IRQn EXTI4_IRQn
 #define BLEN_Pin GPIO_PIN_4
 #define BLEN_GPIO_Port GPIOC
+#define KEY0_Pin GPIO_PIN_5
+#define KEY0_GPIO_Port GPIOC
+#define KEY0_EXTI_IRQn EXTI9_5_IRQn
 #define LED0_Pin GPIO_PIN_8
 #define LED0_GPIO_Port GPIOA
+#define KEY1_Pin GPIO_PIN_15
+#define KEY1_GPIO_Port GPIOA
+#define KEY1_EXTI_IRQn EXTI15_10_IRQn
 #define LED1_Pin GPIO_PIN_2
 #define LED1_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
