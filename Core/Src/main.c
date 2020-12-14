@@ -49,7 +49,7 @@ uint8_t rxBuffer1[1<<8];
 uint8_t rxBuffer2[1<<8];
 uint8_t msg[1<<8];
 int AT_flag;
-//uint8_t AT_msg[1<<8];
+uint8_t AT_msg[1<<8];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,27 +83,32 @@ void set_cmd(uint8_t* cmd) {
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) { // when received from PC
-		static unsigned char uRx_Data[1024] = {0};
-		static unsigned char uLength = 0;
+		static unsigned char uRx_Data1[1024] = {0};
+		static unsigned char uLength1 = 0;
 		if (rxBuffer1[0] == '\n') {
-			uRx_Data[uLength] = '\0';
-			if (uRx_Data[0] == ':') {
-				unsigned char* uRx_Data_ptr = uRx_Data;
+			uRx_Data1[uLength1] = '\0';
+			if (uRx_Data1[0] == ':') {
+				uint8_t temp_msg[1<<8];
+				unsigned char* uRx_Data_ptr = uRx_Data1;
 				set_cmd(uRx_Data_ptr+1);
-
+				sprintf(temp_msg, "AT_answer: %s\n", AT_msg);
+				HAL_UART_Transmit(&huart1, temp_msg, strlen(temp_msg), 0xffff);
 			} else {
 				// add zero char to the end and send to bluetooth
-				sprintf(msg, "%s\0", uRx_Data);
+				sprintf(msg, "%s\0", uRx_Data1);
 				HAL_UART_Transmit(&huart2, msg, strlen(msg)+1, 0xffff);
 				// send back to the PC
-				sprintf(msg, "sent: %s\r\n", uRx_Data);
+				sprintf(msg, "sent: %s\r\n", uRx_Data1);
 				HAL_UART_Transmit(&huart1, msg, strlen(msg), 0xffff);
 			}
 			// reset uLength
-			uLength = 0;
+			uLength1 = 0;
+			for (int i = 0; i < 1024; i++) {
+				uRx_Data1[i] = '\0';
+			}
 		} else {
-			uRx_Data[uLength] = rxBuffer1[0];
-			uLength++;
+			uRx_Data1[uLength1] = rxBuffer1[0];
+			uLength1++;
 		}
 	} else { // when recieved from bluetooth
 		static unsigned char uRx_Data[1024] = {0};
@@ -115,12 +120,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			uLength = 0;
 		} else if(rxBuffer2[0] == '\n'){ // answer of AT mode
 			uRx_Data[uLength] = '\0';
-//			strcpy(AT_msg, uRx_Data);
-			AT_flag = 0;
-			HAL_UART_Transmit(&huart1, uRx_Data, strlen(uRx_Data), 0xffff);
-			for(uint8_t i =0;i<=strlen(uRx_Data)+10; i++){
-				uRx_Data[i] = 0;
+			if (strcmp(uRx_Data, "OK\r")) {
+				for (int i = 0; i < 256; i++) {
+					AT_msg[i] = '\0';
+				}
+				strcpy(AT_msg, uRx_Data);
 			}
+			AT_flag = 0;
+			//HAL_UART_Transmit(&huart1, uRx_Data, strlen(uRx_Data), 0xffff);
 			uLength = 0;
 		} else {
 			uRx_Data[uLength] = rxBuffer2[0];
