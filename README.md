@@ -6,6 +6,7 @@ In this course project, we are required to realize communication using wireless 
 ![avatar](/photos/requirements.png)
 Our group chose to use Bluetooth module to implement those functions. 
 Some requirements should be implemented by using AT command, such as initiating and building connection between different Bluetooth modules. Therefore, we need to set our module into AT mode. 
+
 ## Solutions
 The program mainly contains two parts: Bluetooth transmission model and LCD screen model. The Bluetooth model sends and receives  the message, then LCD model show them on the screen.
 
@@ -122,3 +123,41 @@ int checkhistory(unsigned char bluetooth_msg[]) {
 }
 ```
 ## Problems
+
+## Demo
+
+### demo1: demonstrate the communication process
+
+Using serial debug assistant to communicate as below:
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220123426779.png" height="380" width="600" align="center">
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220123538703.png" height="380" width="600" align="center">
+
+The LCD screen:
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220122947403.png" height="350" width="600" align="center">
+
+### demo2: demonstrate the page-turning function
+
+The screen starts like below:
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220123954073.png" height="350" width="600" align="center">
+
+After we input the <code>+++</code>in serial debug assistant:
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220124155902.png" height="350" width="600" align="center">
+
+### demo3: demonstrate how to connecting and disconnecting the modules
+
+At the beginning the modules are in the connected status:
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220124524751.png" height="380" width="600" align="center">
+
+After we press the KEY1, the connection will shut down:
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220124719016.png" height="380" width="600" align="center">
+
+Then we press the KEY0 to establish the connection again:
+
+<img src="C:\Users\ylz31\AppData\Roaming\Typora\typora-user-images\image-20201220124803750.png" height="380" width="600" align="center">
