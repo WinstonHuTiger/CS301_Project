@@ -10,13 +10,114 @@ Some requirements should be implemented by using AT command, such as initiating 
 ## Solutions
 The program mainly contains two parts: Bluetooth transmission model and LCD screen model. The Bluetooth model sends and receives  the message, then LCD model show them on the screen.
 
+​	For Bluetooth communication model, the main functions are as below:
+
+```
+  1. Using USART to communicate between PC serial ports and Bluetooth serial ports, transpond normal messages.
+  2. Offer interface to set AT commant in Bluetooth chip.
+  3. Offer query interfaces for LCD to query some commonly used information.
+```
+
 ​	For LCD model, the main functions are as below:
 
       1. Show the messages from Bluetooth and local serial port separately.
       2. Able to slide the viewing window to see the history messages.
       3. Show the state of connection.
       4. A beautiful UI with proper font size, color and message box.
+The interfaces between two modules:
+
+```c
+// implemented by Bluetooth module:
+char* get_state(); // get the current state string, for LCD to display.
+
+// implemented by LCD module:
+void add_message(unsigned char msg[], int is_self); // add message to current message queue. is_self denotes whether the message is sent or received.
+```
+
 ## Code Analysis
+
+### Bluetooth Communication
+
+The Bluetooth Communication module offer these interfaces:
+
+```c
+void set_cmd(uint8_t *cmd); // execute AT command
+char* get_state(); // get the current state string, for LCD to display.
+void default_connect(); // start default connetcion, used when key0 is pressed.
+void disconnect(); // disconnet current connection, used when key1 is pressed.
+```
+
+We implemented these interfaces by using interruption and global variables (as flags).
+
+We set the serial port from PC as USART1, and serial port from bluetooth as USART2, the **pseudocode** for the UART callback function is:
+
+```c
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	if (from_USART1) { // when received from PC
+		if (recieving_end) {
+			if (message starts with ":") { // AT mode
+                set_cmd(message);
+                send_back_AT_response()
+			} else { // normal message
+				send_to_bluetooth(message); 
+				add_message(message, is_self); // add to LCD display
+			}
+		} else { // not_recieved_end
+			add_to_message_buffer();
+		}
+	} else { // when recieved from bluetooth
+		if (end_with_normal_mode_ending) { // msg of normal mode
+            send_to_pc(message); 
+			add_message(message, not_self);
+		} else if (end_with_AT_response_ending) { // answer of AT mode
+            set global flag AT_flag to be 0;
+			send_to_pc(message); 
+		} else { // not_recieved_end
+			add_to_message_buffer();
+		}
+	}
+}
+```
+
+Here, we made the interrupt of USART2 (Bluetooth) the highest, thus to made the AT response could be handle timely.
+
+The <code>set_cmd(uint8_t *cmd)</code> function have the following pseudocode:
+
+```c
+void set_cmd(uint8_t *cmd) {
+	set global flag AT_flag = 1;
+	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_SET); // set output key as high, enter AT mode
+	HAL_Delay(50);
+	send_to_bluetooth(cmd);
+	wait until AT_flag is zero or timeout;
+	HAL_GPIO_WritePin(BLEN_GPIO_Port, BLEN_Pin, GPIO_PIN_RESET); // set output key as low, exit AT mode
+}
+```
+
+Here, we need to wait for AT response message from Bluetooth module after we sent the AT command, the global AT_flag is used here. After the response handled in the Bluetooth callback, the AT_flag would be set to 0, thus the set_cmd could end.
+
+The <code>get_state()</code> function is a packaging of <code>set_cmd(uint8_t *cmd)</code>, it returns a pure state string.
+
+For default connection and disconnection, we have pseudocode:
+
+```c
+void default_connect() {
+	if (not_currently_connected) {
+		switch_role();
+	} // else do nothing
+}
+
+void disconnect() {
+	if (currently_connected) {
+		switch_role();
+		set_cmd("AT+DISC");
+	} // else do nothing
+}
+```
+
+Here, the <code>AT+DISC</code>  command can tentatively disconnect the connection, but it will soon reconnect by default it we didn't change the role. Also, if currently not connected, it we change the role to made the two Bluetooth modules pairable, it can build the connection by default.
+
+### LCD Display
 ​	The LCD code mainly has three functions:
 
 ​    **add_message(unsigned char bluetooth_msg[], int is_self):** add message to **Data_lcd** with necessary information like rowlength and sides.
@@ -122,8 +223,27 @@ int checkhistory(unsigned char bluetooth_msg[]) {
    return 0;
 }
 ```
-## Problems
+## Problems & Solutions
 
+**Problem:** The Bluetooth module cannot work when EN port is set high.
+
+​	**Solution:** Buy new HC-05 Bluetooth modules .
+
+**Problem:** Cannot deal with AT response correctly.
+
+​	**Solution:**  Debugging by direct connect HC-05 and PC, found response could be multi-line, then solved.
+
+**Problem:** AT command not executed.
+
+​	**Solution:**  Found that delay need to be introduced.
+
+**Problem:** Cannot receive AT response. 
+
+​	**Solution:** Set the interrupt of Bluetooth USART as highest.
+
+**Problem:** Not sure whether the output pin output the correct voltage.
+
+​	**Solution:**  Use multi-meter to measure voltage.
 ## Demo
 
 ### demo1: demonstrate the communication process
