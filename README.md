@@ -12,18 +12,19 @@ The program mainly contains two parts: Bluetooth transmission model and LCD scre
 
 ​	For Bluetooth communication model, the main functions are as below:
 
-```
+
   1. Using USART to communicate between PC serial ports and Bluetooth serial ports, transpond normal messages.
   2. Offer interface to set AT commant in Bluetooth chip.
   3. Offer query interfaces for LCD to query some commonly used information.
-```
+
 
 ​	For LCD model, the main functions are as below:
 
-      1. Show the messages from Bluetooth and local serial port separately.
-      2. Able to slide the viewing window to see the history messages.
-      3. Show the state of connection.
-      4. A beautiful UI with proper font size, color and message box.
+   1. Show the messages from Bluetooth and local serial port separately.
+   2. Able to slide the viewing window to see the history messages.
+   3. Show the state of connection.
+   4. A beautiful UI with proper font size, color and message box.
+   
 The interfaces between two modules:
 
 ```c
@@ -227,24 +228,29 @@ int checkhistory(unsigned char bluetooth_msg[]) {
 
 **Problem:** The Bluetooth module cannot work when EN port is set high.
 
-​	**Solution:** Buy new HC-05 Bluetooth modules .
+​	    **Solution:** Buy new HC-05 Bluetooth modules .
 
 **Problem:** Cannot deal with AT response correctly.
 
-​	**Solution:**  Debugging by direct connect HC-05 and PC, found response could be multi-line, then solved.
+​	    **Solution:**  Debugging by direct connect HC-05 and PC, found response could be multi-line, then solved.
 
 **Problem:** AT command not executed.
 
-​	**Solution:**  Found that delay need to be introduced.
+​	    **Solution:**  Found that delay need to be introduced.
 
 **Problem:** Cannot receive AT response. 
 
-​	**Solution:** Set the interrupt of Bluetooth USART as highest.
+​	    **Solution:** Set the interrupt of Bluetooth USART as highest.
 
 **Problem:** Not sure whether the output pin output the correct voltage.
 
-​	**Solution:**  Use multi-meter to measure voltage.
-## Demo
+​	    **Solution:**  Use multi-meter to measure voltage.
+
+**Problem:** How to clear the old message in LCD screen?
+
+​	    **Solution:**  LCD_Clear() to clear the whole screen, and using LCD_Fill() to clear locally is better.
+
+## Result
 
 ### demo1: demonstrate the communication process
 
@@ -281,3 +287,6 @@ After we press the KEY1, the connection will shut down:
 Then we press the KEY0 to establish the connection again:
 
 <img src=".\photos\image-20201220124803750.png" height="380" width="600" align="center">
+
+## Thanks
+Special thanks to 张柯远，吴凯越，香佳宏，陈思宇 for aids in Bluetooth module connection problem.
