@@ -289,4 +289,4 @@ Then we press the KEY0 to establish the connection again:
 <img src=".\photos\image-20201220124803750.png" height="380" width="600" align="center">
 
 ## Thanks
-Special thanks to 张柯远，吴凯越，香佳宏，陈思宇 for aids in Bluetooth module connection problem.
+Special thanks to Group 1: 张柯远，吴凯越，香佳宏，陈思宇 for aids in Bluetooth module connection problem.
