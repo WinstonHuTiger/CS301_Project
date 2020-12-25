@@ -3,7 +3,7 @@
 
 ## Requirement Analysis
 In this course project, we are required to realize communication using wireless modules. Details of requirements are as follows:
-![avatar](/photos/requirements.png)
+<img src=".\photos\requirements.png" height="300" width="1000" align="center">
 Our group chose to use Bluetooth module to implement those functions. 
 Some requirements should be implemented by using AT command, such as initiating and building connection between different Bluetooth modules. Therefore, we need to set our module into AT mode. 
 
@@ -13,8 +13,8 @@ The program mainly contains two parts: Bluetooth transmission model and LCD scre
 ​	For Bluetooth communication model, the main functions are as below:
 
 
-  1. Using USART to communicate between PC serial ports and Bluetooth serial ports, transpond normal messages.
-  2. Offer interface to set AT commant in Bluetooth chip.
+  1. Using USART to communicate between PC serial ports and Bluetooth serial ports, transport normal messages.
+  2. Offer interface to set AT command in Bluetooth chip.
   3. Offer query interfaces for LCD to query some commonly used information.
 
 
@@ -24,7 +24,7 @@ The program mainly contains two parts: Bluetooth transmission model and LCD scre
    2. Able to slide the viewing window to see the history messages.
    3. Show the state of connection.
    4. A beautiful UI with proper font size, color and message box.
-   
+
 The interfaces between two modules:
 
 ```c
@@ -99,7 +99,7 @@ Here, we need to wait for AT response message from Bluetooth module after we sen
 
 The <code>get_state()</code> function is a packaging of <code>set_cmd(uint8_t *cmd)</code>, it returns a pure state string.
 
-For default connection and disconnection, we have pseudocode:
+For default connection and disconnection, we have pseudo-code:
 
 ```c
 void default_connect() {
